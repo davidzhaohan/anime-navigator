@@ -64,7 +64,35 @@ export const useAnimeCatalog = () => {
         const ingest = (batch: Anime[]): Anime[] => {
           const fresh = batch.filter((a) => a && !seen.has(a.mal_id));
           fresh.forEach((a) => seen.add(a.mal_id));
-          if (fresh.length) setAnime((prev) => [...prev, ...fresh]);
+          const added: Anime[] = [];
+          const updated: Anime[] = [];
+          for (const a of fresh) {
+            if (!a?.title) continue;
+            const k = titleKey(a.title);
+            const cur = bestByTitle.get(k);
+            if (!cur) {
+              bestByTitle.set(k, a);
+              added.push(a);
+            } else {
+              const better = pickBetter(cur, a);
+              if (better !== cur) {
+                bestByTitle.set(k, better);
+                updated.push(better);
+              }
+            }
+          }
+          if (added.length || updated.length) {
+            setAnime((prev) => {
+              const next = updated.length
+                ? prev.map((p) => {
+                    const k = titleKey(p.title);
+                    const u = updated.find((x) => titleKey(x.title) === k);
+                    return u ?? p;
+                  })
+                : prev;
+              return added.length ? [...next, ...added] : next;
+            });
+          }
           return fresh;
         };
 
