@@ -42,58 +42,100 @@ const Index = () => {
 
     (async () => {
       try {
-        setLoading(true);
-        // Jikan /anime endpoint, filtered to Japanese productions, paginated.
-        // Rate-limited to ~3 req/sec — we throttle to 350ms between requests.
+        // 1. Load cached catalog + finished list from DB first
+        const [catalogRes, finishedRes, metaRes] = await Promise.all([
+          supabase.from("anime_catalog").select("data").order("mal_id", { ascending: true }),
+          supabase.from("finished_anime").select("mal_id"),
+          supabase.from("catalog_meta").select("*").eq("id", META_ID).maybeSingle(),
+        ]);
+        if (cancelled) return;
+
+        const cached: Anime[] = (catalogRes.data ?? []).map((r: { data: unknown }) => r.data as Anime);
+        const seen = new Set<number>(cached.map((a) => a.mal_id));
+        if (cached.length) setAnime(cached);
+        if (finishedRes.data) setFinishedIds(finishedRes.data.map((r) => r.mal_id));
+        setLoading(false);
+
+        let startPage = (metaRes.data?.last_page_loaded ?? 0) + 1;
+        const alreadyCompleted = metaRes.data?.completed ?? false;
+        if (alreadyCompleted) {
+          setProgress({ loaded: cached.length, total: cached.length, done: true });
+          return;
+        }
+
+        // 2. Continue fetching from Jikan where we left off
         const buildUrl = (p: number) =>
           `https://api.jikan.moe/v4/anime?page=${p}&limit=25&order_by=popularity&sort=asc`;
 
-        const first = await fetch(buildUrl(1)).then((r) => r.json());
-        if (cancelled) return;
-        const lastPage: number = first?.pagination?.last_visible_page ?? 1;
-        const perPage: number = first?.pagination?.items?.per_page ?? 25;
-        const totalItems: number = first?.pagination?.items?.total ?? lastPage * perPage;
-
-        const seen = new Set<number>();
-        const pushBatch = (batch: Anime[]) => {
-          if (!batch?.length) return;
-          setAnime((prev) => {
-            const existing = new Set(prev.map((a) => a.mal_id));
-            const fresh = batch.filter(
-              (a) => a && !existing.has(a.mal_id) && !seen.has(a.mal_id) && (seen.add(a.mal_id), true),
-            );
-            return fresh.length ? [...prev, ...fresh] : prev;
-          });
+        const persistBatch = async (batch: Anime[]) => {
+          if (!batch.length) return;
+          const rows = batch.map((a) => ({ mal_id: a.mal_id, data: a as unknown as object }));
+          await supabase.from("anime_catalog").upsert(rows, { onConflict: "mal_id" });
         };
 
-        pushBatch(first.data ?? []);
-        setProgress({ loaded: seen.size, total: totalItems, done: false });
-        setLoading(false); // show UI as soon as first page lands
+        const pushBatch = (batch: Anime[]): Anime[] => {
+          if (!batch?.length) return [];
+          const fresh = batch.filter((a) => a && !seen.has(a.mal_id));
+          fresh.forEach((a) => seen.add(a.mal_id));
+          if (fresh.length) setAnime((prev) => [...prev, ...fresh]);
+          return fresh;
+        };
 
-        for (let p = 2; p <= lastPage; p++) {
+        const first = await fetch(buildUrl(startPage)).then((r) => r.json());
+        if (cancelled) return;
+        const lastPage: number = first?.pagination?.last_visible_page ?? startPage;
+        const totalItems: number = first?.pagination?.items?.total ?? lastPage * 25;
+
+        const firstFresh = pushBatch(first.data ?? []);
+        await persistBatch(firstFresh);
+        setProgress({ loaded: seen.size, total: Math.max(totalItems, seen.size), done: false });
+        await supabase.from("catalog_meta").upsert({
+          id: META_ID,
+          last_page_loaded: startPage,
+          total_expected: totalItems,
+          completed: startPage >= lastPage,
+          updated_at: new Date().toISOString(),
+        });
+
+        for (let p = startPage + 1; p <= lastPage; p++) {
           if (cancelled) return;
           await sleep(350);
+          let fresh: Anime[] = [];
           try {
             const res = await fetch(buildUrl(p));
             if (!res.ok) {
-              // back off on 429 and retry once
               if (res.status === 429) {
                 await sleep(1500);
                 const retry = await fetch(buildUrl(p)).then((r) => r.json());
-                pushBatch(retry.data ?? []);
+                fresh = pushBatch(retry.data ?? []);
               }
             } else {
               const json = await res.json();
-              pushBatch(json.data ?? []);
+              fresh = pushBatch(json.data ?? []);
             }
           } catch {
-            // swallow individual page errors, keep going
+            // ignore individual page errors
           }
-          if (!cancelled) setProgress({ loaded: seen.size, total: totalItems, done: false });
+          await persistBatch(fresh);
+          if (!cancelled) {
+            setProgress({ loaded: seen.size, total: totalItems, done: false });
+            // persist progress every 10 pages to limit DB writes
+            if (p % 10 === 0 || p === lastPage) {
+              await supabase.from("catalog_meta").upsert({
+                id: META_ID,
+                last_page_loaded: p,
+                total_expected: totalItems,
+                completed: p >= lastPage,
+                updated_at: new Date().toISOString(),
+              });
+            }
+          }
         }
         if (!cancelled) setProgress((prev) => ({ ...prev, done: true }));
       } catch (e) {
-        if (!cancelled) setError("Failed to load anime. Please try again later.");
+        if (!cancelled && anime.length === 0) {
+          setError("Failed to load anime. Please try again later.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -101,16 +143,19 @@ const Index = () => {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(finishedIds));
-  }, [finishedIds]);
-
   const toggleFinished = (id: number) => {
-    setFinishedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setFinishedIds((prev) => {
+      const isFinished = prev.includes(id);
+      if (isFinished) {
+        supabase.from("finished_anime").delete().eq("mal_id", id).then(() => {});
+        return prev.filter((x) => x !== id);
+      }
+      supabase.from("finished_anime").insert({ mal_id: id }).then(() => {});
+      return [...prev, id];
+    });
   };
 
   // Build filter option lists from data
