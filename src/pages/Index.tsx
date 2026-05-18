@@ -69,7 +69,7 @@ const Index = () => {
 
         const persistBatch = async (batch: Anime[]) => {
           if (!batch.length) return;
-          const rows = batch.map((a) => ({ mal_id: a.mal_id, data: a as unknown as object }));
+          const rows = batch.map((a) => ({ mal_id: a.mal_id, data: a as never }));
           await supabase.from("anime_catalog").upsert(rows, { onConflict: "mal_id" });
         };
 
