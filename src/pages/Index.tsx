@@ -46,16 +46,54 @@ const Index = () => {
 
   useEffect(() => {
     let cancelled = false;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
     (async () => {
       try {
         setLoading(true);
-        // Pull two pages of top anime for a richer dataset
-        const fetchPage = (p: number) =>
-          fetch(`https://api.jikan.moe/v4/top/anime?page=${p}&limit=25`).then((r) => r.json());
-        const [p1, p2] = await Promise.all([fetchPage(1), fetchPage(2)]);
+        // Jikan /anime endpoint, filtered to Japanese productions, paginated.
+        // Rate-limited to ~3 req/sec — we throttle to 350ms between requests.
+        const buildUrl = (p: number) =>
+          `https://api.jikan.moe/v4/anime?page=${p}&limit=25&order_by=popularity&sort=asc`;
+
+        const first = await fetch(buildUrl(1)).then((r) => r.json());
         if (cancelled) return;
-        const combined: Anime[] = [...(p1.data ?? []), ...(p2.data ?? [])];
-        setAnime(combined);
+        const lastPage: number = first?.pagination?.last_visible_page ?? 1;
+        const perPage: number = first?.pagination?.items?.per_page ?? 25;
+        const totalItems: number = first?.pagination?.items?.total ?? lastPage * perPage;
+
+        const seen = new Set<number>();
+        const pushBatch = (batch: Anime[]) => {
+          const fresh = batch.filter((a) => a && !seen.has(a.mal_id) && (seen.add(a.mal_id), true));
+          if (fresh.length) setAnime((prev) => [...prev, ...fresh]);
+        };
+
+        pushBatch(first.data ?? []);
+        setProgress({ loaded: seen.size, total: totalItems, done: false });
+        setLoading(false); // show UI as soon as first page lands
+
+        for (let p = 2; p <= lastPage; p++) {
+          if (cancelled) return;
+          await sleep(350);
+          try {
+            const res = await fetch(buildUrl(p));
+            if (!res.ok) {
+              // back off on 429 and retry once
+              if (res.status === 429) {
+                await sleep(1500);
+                const retry = await fetch(buildUrl(p)).then((r) => r.json());
+                pushBatch(retry.data ?? []);
+              }
+            } else {
+              const json = await res.json();
+              pushBatch(json.data ?? []);
+            }
+          } catch {
+            // swallow individual page errors, keep going
+          }
+          if (!cancelled) setProgress({ loaded: seen.size, total: totalItems, done: false });
+        }
+        if (!cancelled) setProgress((prev) => ({ ...prev, done: true }));
       } catch (e) {
         if (!cancelled) setError("Failed to load anime. Please try again later.");
       } finally {
