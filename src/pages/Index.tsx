@@ -64,8 +64,14 @@ const Index = () => {
 
         const seen = new Set<number>();
         const pushBatch = (batch: Anime[]) => {
-          const fresh = batch.filter((a) => a && !seen.has(a.mal_id) && (seen.add(a.mal_id), true));
-          if (fresh.length) setAnime((prev) => [...prev, ...fresh]);
+          if (!batch?.length) return;
+          setAnime((prev) => {
+            const existing = new Set(prev.map((a) => a.mal_id));
+            const fresh = batch.filter(
+              (a) => a && !existing.has(a.mal_id) && !seen.has(a.mal_id) && (seen.add(a.mal_id), true),
+            );
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
         };
 
         pushBatch(first.data ?? []);
@@ -201,7 +207,7 @@ const Index = () => {
         }} />
         <div className="container relative mx-auto px-4 py-10 md:py-14">
           <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-[0.25em] opacity-90">
-            <Sparkles className="h-4 w-4" /> Anime Todo Tracker
+            <Sparkles className="h-4 w-4" />
           </div>
           <h1 className="mt-3 text-3xl md:text-5xl font-bold leading-tight">
             Find your next obsession.
