@@ -207,7 +207,7 @@ const Index = () => {
         }} />
         <div className="container relative mx-auto px-4 py-10 md:py-14">
           <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-[0.25em] opacity-90">
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-4 w-4" /> Anime Todo Tracker
           </div>
           <h1 className="mt-3 text-3xl md:text-5xl font-bold leading-tight">
             Find your next obsession.
