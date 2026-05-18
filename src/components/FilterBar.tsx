@@ -169,6 +169,7 @@ export const FilterBar = ({
               <SelectItem value="popularity">Popularity</SelectItem>
               <SelectItem value="score">Score</SelectItem>
               <SelectItem value="title">Alphabetical (A–Z)</SelectItem>
+              <SelectItem value="aired">Airing date (newest)</SelectItem>
             </SelectContent>
           </Select>
         </div>

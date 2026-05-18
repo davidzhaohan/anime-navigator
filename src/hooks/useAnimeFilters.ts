@@ -66,6 +66,11 @@ export const useAnimeFilters = (anime: Anime[], search: string) => {
       result = [...result].sort((a, b) => {
         if (sortBy === "title") return a.title.localeCompare(b.title);
         if (sortBy === "score") return (b.score ?? 0) - (a.score ?? 0);
+        if (sortBy === "aired") {
+          const at = a.aired?.from ? new Date(a.aired.from).getTime() : 0;
+          const bt = b.aired?.from ? new Date(b.aired.from).getTime() : 0;
+          return bt - at;
+        }
         return (a.popularity ?? Infinity) - (b.popularity ?? Infinity);
       });
       return result;
