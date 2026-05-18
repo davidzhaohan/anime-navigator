@@ -64,8 +64,14 @@ const Index = () => {
 
         const seen = new Set<number>();
         const pushBatch = (batch: Anime[]) => {
-          const fresh = batch.filter((a) => a && !seen.has(a.mal_id) && (seen.add(a.mal_id), true));
-          if (fresh.length) setAnime((prev) => [...prev, ...fresh]);
+          if (!batch?.length) return;
+          setAnime((prev) => {
+            const existing = new Set(prev.map((a) => a.mal_id));
+            const fresh = batch.filter(
+              (a) => a && !existing.has(a.mal_id) && !seen.has(a.mal_id) && (seen.add(a.mal_id), true),
+            );
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
         };
 
         pushBatch(first.data ?? []);
