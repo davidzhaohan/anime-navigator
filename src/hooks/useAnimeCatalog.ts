@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Anime } from "@/types/anime";
-import { supabase } from "@/integrations/supabase/client";
 import { fetchJikanPage, sleep } from "@/lib/jikan";
-
-const META_ID = "jikan-catalog";
+import {
+  loadCatalog,
+  loadCatalogMeta,
+  saveCatalog,
+  saveCatalogMeta,
+} from "@/lib/localDb";
 
 export interface CatalogProgress {
   loaded: number;
@@ -22,16 +25,10 @@ export const useAnimeCatalog = () => {
 
     (async () => {
       try {
-        // 1. Hydrate from DB
-        const [catalogRes, metaRes] = await Promise.all([
-          supabase.from("anime_catalog").select("data").order("mal_id", { ascending: true }),
-          supabase.from("catalog_meta").select("*").eq("id", META_ID).maybeSingle(),
-        ]);
+        // 1. Hydrate from local DB
+        const [rawCached, meta] = await Promise.all([loadCatalog(), loadCatalogMeta()]);
         if (cancelled) return;
 
-        const rawCached: Anime[] = (catalogRes.data ?? []).map(
-          (r: { data: unknown }) => r.data as Anime,
-        );
         const seen = new Set<number>(rawCached.map((a) => a.mal_id));
         const titleKey = (t: string) => t.trim().toLowerCase();
         const bestByTitle = new Map<string, Anime>();
@@ -46,28 +43,30 @@ export const useAnimeCatalog = () => {
         const cached = Array.from(bestByTitle.values());
         if (cached.length) setAnime(cached);
         setLoading(false);
+        setProgress({
+          loaded: cached.length,
+          total: meta?.total_expected || cached.length,
+          done: !!meta?.completed,
+        });
 
-        if (metaRes.data?.completed) {
-          setProgress({ loaded: cached.length, total: cached.length, done: true });
-          return;
-        }
-
-        // 2. Resume Jikan fetch from where we left off
-        const startPage = (metaRes.data?.last_page_loaded ?? 0) + 1;
-
-        const persist = async (batch: Anime[]) => {
-          if (!batch.length) return;
-          const rows = batch.map((a) => ({ mal_id: a.mal_id, data: a as never }));
-          await supabase.from("anime_catalog").upsert(rows, { onConflict: "mal_id" });
+        // Working buffer — all anime keyed by mal_id, persisted in batches
+        const byId = new Map<number, Anime>(rawCached.map((a) => [a.mal_id, a]));
+        let dirty = false;
+        const flush = async () => {
+          if (!dirty) return;
+          dirty = false;
+          await saveCatalog(Array.from(byId.values()));
         };
 
-        const ingest = (batch: Anime[]): Anime[] => {
+        const ingest = (batch: Anime[]) => {
           const fresh = batch.filter((a) => a && !seen.has(a.mal_id));
           fresh.forEach((a) => seen.add(a.mal_id));
           const added: Anime[] = [];
           const updated: Anime[] = [];
           for (const a of fresh) {
             if (!a?.title) continue;
+            byId.set(a.mal_id, a);
+            dirty = true;
             const k = titleKey(a.title);
             const cur = bestByTitle.get(k);
             if (!cur) {
@@ -93,18 +92,22 @@ export const useAnimeCatalog = () => {
               return added.length ? [...next, ...added] : next;
             });
           }
-          return fresh;
         };
+
+        // 2. Always ping Jikan on startup for new pages.
+        // Resume from the page after the last persisted one; if catalog was marked
+        // completed, re-check from page 1 in case new titles were added.
+        const startPage = meta?.completed ? 1 : (meta?.last_page_loaded ?? 0) + 1;
 
         const first = await fetchJikanPage(startPage);
         if (cancelled || !first) return;
         const lastPage = first.lastPage;
         const totalItems = first.total || lastPage * 25;
 
-        await persist(ingest(first.data));
+        ingest(first.data);
+        await flush();
         setProgress({ loaded: seen.size, total: Math.max(totalItems, seen.size), done: false });
-        await supabase.from("catalog_meta").upsert({
-          id: META_ID,
+        await saveCatalogMeta({
           last_page_loaded: startPage,
           total_expected: totalItems,
           completed: startPage >= lastPage,
@@ -115,12 +118,12 @@ export const useAnimeCatalog = () => {
           if (cancelled) return;
           await sleep(350);
           const page = await fetchJikanPage(p);
-          if (page) await persist(ingest(page.data));
+          if (page) ingest(page.data);
           if (cancelled) return;
           setProgress({ loaded: seen.size, total: totalItems, done: false });
           if (p % 10 === 0 || p === lastPage) {
-            await supabase.from("catalog_meta").upsert({
-              id: META_ID,
+            await flush();
+            await saveCatalogMeta({
               last_page_loaded: p,
               total_expected: totalItems,
               completed: p >= lastPage,
@@ -128,6 +131,7 @@ export const useAnimeCatalog = () => {
             });
           }
         }
+        await flush();
         if (!cancelled) setProgress((prev) => ({ ...prev, done: true }));
       } catch (e) {
         if (!cancelled) {
