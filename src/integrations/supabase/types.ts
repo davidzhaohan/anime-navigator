@@ -14,7 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      anime_catalog: {
+        Row: {
+          data: Json
+          mal_id: number
+          updated_at: string
+        }
+        Insert: {
+          data: Json
+          mal_id: number
+          updated_at?: string
+        }
+        Update: {
+          data?: Json
+          mal_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      catalog_meta: {
+        Row: {
+          completed: boolean
+          id: string
+          last_page_loaded: number
+          total_expected: number
+          updated_at: string
+        }
+        Insert: {
+          completed?: boolean
+          id: string
+          last_page_loaded?: number
+          total_expected?: number
+          updated_at?: string
+        }
+        Update: {
+          completed?: boolean
+          id?: string
+          last_page_loaded?: number
+          total_expected?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      finished_anime: {
+        Row: {
+          created_at: string
+          mal_id: number
+        }
+        Insert: {
+          created_at?: string
+          mal_id: number
+        }
+        Update: {
+          created_at?: string
+          mal_id?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
