@@ -235,6 +235,18 @@ const Index = () => {
           />
         </div>
 
+        {!progress.done && progress.total > 0 && (
+          <div className="mb-4 rounded-lg border border-border bg-card/60 px-4 py-2 text-xs text-muted-foreground">
+            Loading anime catalog… {progress.loaded.toLocaleString()} of {progress.total.toLocaleString()} loaded
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${Math.min(100, (progress.loaded / progress.total) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <Tabs defaultValue="available" className="w-full">
           <TabsList className="grid w-full grid-cols-2 max-w-md mb-5">
             <TabsTrigger value="available" className="gap-2">
