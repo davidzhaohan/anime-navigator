@@ -63,27 +63,27 @@
   }
 
   .dark {
-    --background: 270 30% 8%;
-    --foreground: 280 30% 96%;
+    --background: 150 30% 7%;
+    --foreground: 140 30% 96%;
 
-    --card: 270 30% 12%;
-    --card-foreground: 280 30% 96%;
+    --card: 150 30% 11%;
+    --card-foreground: 140 30% 96%;
 
-    --popover: 270 30% 12%;
-    --popover-foreground: 280 30% 96%;
+    --popover: 150 30% 11%;
+    --popover-foreground: 140 30% 96%;
 
-    --primary: 326 90% 65%;
-    --primary-foreground: 270 40% 10%;
-    --primary-glow: 326 100% 75%;
+    --primary: 150 70% 50%;
+    --primary-foreground: 150 40% 8%;
+    --primary-glow: 145 80% 60%;
 
-    --secondary: 270 25% 18%;
-    --secondary-foreground: 280 30% 96%;
+    --secondary: 150 25% 17%;
+    --secondary-foreground: 140 30% 96%;
 
-    --muted: 270 25% 16%;
-    --muted-foreground: 270 15% 65%;
+    --muted: 150 25% 15%;
+    --muted-foreground: 150 15% 65%;
 
-    --accent: 200 95% 65%;
-    --accent-foreground: 270 40% 10%;
+    --accent: 170 80% 55%;
+    --accent-foreground: 150 40% 8%;
 
     --destructive: 0 70% 55%;
     --destructive-foreground: 0 0% 100%;
@@ -91,14 +91,14 @@
     --success: 145 65% 50%;
     --success-foreground: 0 0% 100%;
 
-    --border: 270 25% 22%;
-    --input: 270 25% 20%;
-    --ring: 326 90% 65%;
+    --border: 150 25% 20%;
+    --input: 150 25% 18%;
+    --ring: 150 70% 50%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(326 90% 65%), hsl(280 80% 65%));
-    --gradient-hero: linear-gradient(135deg, hsl(326 90% 65%) 0%, hsl(280 75% 60%) 50%, hsl(200 95% 65%) 100%);
-    --gradient-soft: linear-gradient(180deg, hsl(270 30% 10%), hsl(270 30% 14%));
-    --shadow-glow: 0 10px 40px -10px hsl(326 90% 65% / 0.5);
+    --gradient-primary: linear-gradient(135deg, hsl(150 70% 45%), hsl(170 75% 50%));
+    --gradient-hero: linear-gradient(135deg, hsl(150 70% 32%) 0%, hsl(160 65% 42%) 50%, hsl(180 70% 45%) 100%);
+    --gradient-soft: linear-gradient(180deg, hsl(150 30% 9%), hsl(150 30% 13%));
+    --shadow-glow: 0 10px 40px -10px hsl(150 70% 50% / 0.5);
     --shadow-card: 0 4px 20px -4px hsl(0 0% 0% / 0.4);
     --shadow-elevated: 0 20px 50px -15px hsl(0 0% 0% / 0.5);
 
