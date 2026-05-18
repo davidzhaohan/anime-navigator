@@ -6,17 +6,9 @@ import { Anime, SortKey } from "@/types/anime";
 import { FilterBar } from "@/components/FilterBar";
 import { AnimeRow } from "@/components/AnimeRow";
 import { useDebounce } from "@/hooks/useDebounce";
+import { supabase } from "@/integrations/supabase/client";
 
-const STORAGE_KEY = "anime-tracker:finished-ids";
-
-const loadFinished = (): number[] => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-};
+const META_ID = "jikan-catalog";
 
 // Normalize MAL rating strings like "PG-13 - Teens 13 or older" -> "PG-13"
 const normalizeRating = (r: string | null): string | null => {
