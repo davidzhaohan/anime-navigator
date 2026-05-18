@@ -20,7 +20,7 @@ const Index = () => {
   const [anime, setAnime] = useState<Anime[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [finishedIds, setFinishedIds] = useState<number[]>(() => loadFinished());
+  const [finishedIds, setFinishedIds] = useState<number[]>([]);
   const [progress, setProgress] = useState<{ loaded: number; total: number; done: boolean }>({
     loaded: 0,
     total: 0,
