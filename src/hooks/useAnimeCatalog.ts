@@ -29,10 +29,21 @@ export const useAnimeCatalog = () => {
         ]);
         if (cancelled) return;
 
-        const cached: Anime[] = (catalogRes.data ?? []).map(
+        const rawCached: Anime[] = (catalogRes.data ?? []).map(
           (r: { data: unknown }) => r.data as Anime,
         );
-        const seen = new Set<number>(cached.map((a) => a.mal_id));
+        const seen = new Set<number>(rawCached.map((a) => a.mal_id));
+        const titleKey = (t: string) => t.trim().toLowerCase();
+        const bestByTitle = new Map<string, Anime>();
+        const pickBetter = (a: Anime, b: Anime) =>
+          (b.score ?? -1) > (a.score ?? -1) ? b : a;
+        for (const a of rawCached) {
+          if (!a?.title) continue;
+          const k = titleKey(a.title);
+          const cur = bestByTitle.get(k);
+          bestByTitle.set(k, cur ? pickBetter(cur, a) : a);
+        }
+        const cached = Array.from(bestByTitle.values());
         if (cached.length) setAnime(cached);
         setLoading(false);
 
