@@ -10,6 +10,7 @@ export interface Anime {
   score: number | null;
   popularity: number | null;
   status: string | null;       // "Currently Airing", "Finished Airing", etc.
+  aired?: { from: string | null; to: string | null } | null;
 }
 
-export type SortKey = "popularity" | "score" | "title";
+export type SortKey = "popularity" | "score" | "title" | "aired";
