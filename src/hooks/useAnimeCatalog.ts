@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Anime } from "@/types/anime";
-import { fetchJikanPage, sleep } from "@/lib/jikan";
+import { fetchJikanRecentPage, sleep } from "@/lib/jikan";
 import {
   loadCatalog,
   loadCatalogMeta,
