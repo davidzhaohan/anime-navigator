@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Anime } from "@/types/anime";
-import { fetchJikanRecentPage, sleep } from "@/lib/jikan";
+import { fetchJikanPage, fetchJikanRecentPage, JIKAN_PAGE_LIMIT, sleep } from "@/lib/jikan";
 import {
   loadCatalog,
   loadCatalogMeta,
@@ -17,6 +17,15 @@ export interface CatalogProgress {
 const titleKey = (t: string) => t.trim().toLowerCase();
 const pickBetter = (a: Anime, b: Anime) =>
   (b.score ?? -1) > (a.score ?? -1) ? b : a;
+const RECENT_SCAN_PAGES = 8;
+const EXPANSION_BATCH_PAGES = 40;
+const REQUEST_DELAY_MS = 450;
+
+const inferLoadedPopularityPage = (storedPage: number | undefined, localCount: number) => {
+  if (storedPage && storedPage > 0) return storedPage;
+  const likelyRecentOnlyCount = RECENT_SCAN_PAGES * JIKAN_PAGE_LIMIT;
+  return Math.max(0, Math.floor(Math.max(0, localCount - likelyRecentOnlyCount) / JIKAN_PAGE_LIMIT));
+};
 
 export const useAnimeCatalog = () => {
   const [anime, setAnime] = useState<Anime[]>([]);
@@ -124,42 +133,61 @@ export const useAnimeCatalog = () => {
     try {
       const meta = await loadCatalogMeta();
       const prevCount = byId.size;
-      const totalExpected = meta?.total_expected ?? prevCount;
+      let totalExpected = meta?.total_expected ?? prevCount;
       setProgress({ loaded: prevCount, total: Math.max(totalExpected, prevCount), done: false });
 
-      // Walk recent (newest first). Stop once we hit consecutive pages with
-      // no new titles — those are already in our catalog.
-      const MAX_PAGES = 40;
-      const STOP_AFTER_STALE = 2;
-      let staleStreak = 0;
-      let lastPage = MAX_PAGES;
+      let lastPage = Number.POSITIVE_INFINITY;
+      let requestsMade = 0;
 
-      for (let p = 1; p <= Math.min(MAX_PAGES, lastPage); p++) {
-        if (p > 1) await sleep(350);
+      const waitForNextRequest = async () => {
+        if (requestsMade > 0) await sleep(REQUEST_DELAY_MS);
+        requestsMade++;
+      };
+
+      // First scan the newest pages so newly announced anime are picked up even
+      // when they appear before the saved popularity cursor.
+      for (let p = 1; p <= Math.min(RECENT_SCAN_PAGES, lastPage); p++) {
+        await waitForNextRequest();
         const page = await fetchJikanRecentPage(p);
         if (!page) continue;
-        lastPage = page.lastPage;
-        const before = seen.size;
+        lastPage = page.lastPage || lastPage;
+        totalExpected = Math.max(totalExpected, page.total || 0);
         ingest(page.data);
-        const newlyAdded = seen.size - before;
         setProgress({
-          loaded: byId.size,
-          total: Math.max(page.total || totalExpected, byId.size),
+          loaded: bestByTitle.size,
+          total: Math.max(totalExpected, bestByTitle.size),
           done: false,
         });
-        if (newlyAdded === 0) {
-          staleStreak++;
-          if (staleStreak >= STOP_AFTER_STALE) break;
-        } else {
-          staleStreak = 0;
-        }
+      }
+
+      // Then continue the full catalog crawl in popularity order. This cursor is
+      // persisted, so every button click advances another batch instead of
+      // repeatedly stopping on already-cached recent pages.
+      let lastLoadedPopularityPage = inferLoadedPopularityPage(meta?.last_page_loaded, byId.size);
+      const startPage = lastLoadedPopularityPage + 1;
+      const endPage = Math.min(startPage + EXPANSION_BATCH_PAGES - 1, lastPage);
+
+      for (let p = startPage; p <= endPage; p++) {
+        await waitForNextRequest();
+        const page = await fetchJikanPage(p);
+        if (!page) continue;
+        lastPage = Math.min(lastPage, page.lastPage || lastPage);
+        totalExpected = Math.max(totalExpected, page.total || 0);
+        ingest(page.data);
+        lastLoadedPopularityPage = Math.max(lastLoadedPopularityPage, p);
+        setProgress({
+          loaded: bestByTitle.size,
+          total: Math.max(totalExpected, bestByTitle.size),
+          done: false,
+        });
+        if (p >= lastPage) break;
       }
 
       await flush();
       await saveCatalogMeta({
-        last_page_loaded: meta?.last_page_loaded ?? 0,
-        total_expected: Math.max(totalExpected, byId.size),
-        completed: meta?.completed ?? false,
+        last_page_loaded: lastLoadedPopularityPage,
+        total_expected: Math.max(totalExpected, bestByTitle.size),
+        completed: Number.isFinite(lastPage) && lastLoadedPopularityPage >= lastPage,
         updated_at: new Date().toISOString(),
       });
       setProgress((prev) => ({ ...prev, done: true }));
