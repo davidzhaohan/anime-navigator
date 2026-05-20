@@ -16,7 +16,15 @@ export interface JikanPage {
   total: number;
 }
 
-const parsePage = (json: any, page: number): JikanPage => ({
+interface JikanResponse {
+  data?: Anime[];
+  pagination?: {
+    last_visible_page?: number;
+    items?: { total?: number };
+  };
+}
+
+const parsePage = (json: JikanResponse, page: number): JikanPage => ({
   data: json?.data ?? [],
   lastPage: json?.pagination?.last_visible_page ?? page,
   total: json?.pagination?.items?.total ?? 0,
