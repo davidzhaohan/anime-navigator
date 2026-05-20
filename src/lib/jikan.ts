@@ -5,6 +5,9 @@ export const JIKAN_PAGE_LIMIT = 25;
 export const buildJikanUrl = (page: number) =>
   `https://api.jikan.moe/v4/anime?page=${page}&limit=${JIKAN_PAGE_LIMIT}&order_by=popularity&sort=asc`;
 
+export const buildJikanRecentUrl = (page: number) =>
+  `https://api.jikan.moe/v4/anime?page=${page}&limit=${JIKAN_PAGE_LIMIT}&order_by=start_date&sort=desc`;
+
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface JikanPage {
