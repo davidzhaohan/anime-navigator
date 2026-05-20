@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Inbox, CheckCircle2 } from "lucide-react";
+import { Sparkles, Inbox, CheckCircle2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { FilterBar } from "@/components/FilterBar";
 import { ResultsList } from "@/components/ResultsList";
 import { CatalogProgressBar } from "@/components/CatalogProgressBar";
@@ -10,7 +11,7 @@ import { useFinishedAnime } from "@/hooks/useFinishedAnime";
 import { useAnimeFilters } from "@/hooks/useAnimeFilters";
 
 const Index = () => {
-  const { anime, loading, error, progress } = useAnimeCatalog();
+  const { anime, loading, error, progress, refresh, refreshing } = useAnimeCatalog();
   const { finishedIds, toggleFinished } = useFinishedAnime();
 
   const [searchInput, setSearchInput] = useState("");
@@ -74,7 +75,17 @@ const Index = () => {
           />
         </div>
 
-        {!progress.done && progress.total > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            {progress.loaded.toLocaleString()} titles in local catalog
+          </div>
+          <Button size="sm" variant="outline" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={refreshing ? "animate-spin" : ""} />
+            {refreshing ? "Refreshing…" : "Refresh catalog"}
+          </Button>
+        </div>
+
+        {refreshing && !progress.done && progress.total > 0 && (
           <CatalogProgressBar loaded={progress.loaded} total={progress.total} />
         )}
 
