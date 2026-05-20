@@ -132,10 +132,9 @@ export const useAnimeCatalog = () => {
     try {
       const meta = await loadCatalogMeta();
       const prevCount = byId.size;
-      const totalExpected = meta?.total_expected ?? prevCount;
+      let totalExpected = meta?.total_expected ?? prevCount;
       setProgress({ loaded: prevCount, total: Math.max(totalExpected, prevCount), done: false });
 
-      let totalExpected = meta?.total_expected ?? prevCount;
       let lastPage = Number.POSITIVE_INFINITY;
       let requestsMade = 0;
 
