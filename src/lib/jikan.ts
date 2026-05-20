@@ -22,18 +22,19 @@ const parsePage = (json: any, page: number): JikanPage => ({
   total: json?.pagination?.items?.total ?? 0,
 });
 
+const retryDelay = (res: Response) => {
+  const retryAfter = Number(res.headers.get("retry-after"));
+  return Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1800;
+};
+
 const fetchUrl = async (url: string, page: number): Promise<JikanPage | null> => {
-  const res = await fetch(url);
-  if (!res.ok) {
-    if (res.status === 429) {
-      await sleep(1500);
-      const retry = await fetch(url);
-      if (!retry.ok) return null;
-      return parsePage(await retry.json(), page);
-    }
-    return null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url);
+    if (res.ok) return parsePage(await res.json(), page);
+    if (res.status !== 429 && res.status < 500) return null;
+    await sleep(retryDelay(res) * (attempt + 1));
   }
-  return parsePage(await res.json(), page);
+  return null;
 };
 
 export const fetchJikanPage = (page: number) => fetchUrl(buildJikanUrl(page), page);
