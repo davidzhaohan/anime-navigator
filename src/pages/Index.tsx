@@ -75,7 +75,17 @@ const Index = () => {
           />
         </div>
 
-        {!progress.done && progress.total > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            {progress.loaded.toLocaleString()} titles in local catalog
+          </div>
+          <Button size="sm" variant="outline" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={refreshing ? "animate-spin" : ""} />
+            {refreshing ? "Refreshing…" : "Refresh catalog"}
+          </Button>
+        </div>
+
+        {refreshing && !progress.done && progress.total > 0 && (
           <CatalogProgressBar loaded={progress.loaded} total={progress.total} />
         )}
 
