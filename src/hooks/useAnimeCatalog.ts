@@ -123,42 +123,45 @@ export const useAnimeCatalog = () => {
 
     try {
       const meta = await loadCatalogMeta();
-      const startPage = meta?.completed ? 1 : (meta?.last_page_loaded ?? 0) + 1;
+      const prevCount = byId.size;
+      const totalExpected = meta?.total_expected ?? prevCount;
+      setProgress({ loaded: prevCount, total: Math.max(totalExpected, prevCount), done: false });
 
-      const first = await fetchJikanPage(startPage);
-      if (!first) {
-        setProgress((p) => ({ ...p, done: true }));
-        return;
-      }
-      const lastPage = first.lastPage;
-      const totalItems = first.total || lastPage * 25;
+      // Walk recent (newest first). Stop once we hit consecutive pages with
+      // no new titles — those are already in our catalog.
+      const MAX_PAGES = 40;
+      const STOP_AFTER_STALE = 2;
+      let staleStreak = 0;
+      let lastPage = MAX_PAGES;
 
-      ingest(first.data);
-      await flush();
-      setProgress({ loaded: seen.size, total: Math.max(totalItems, seen.size), done: false });
-      await saveCatalogMeta({
-        last_page_loaded: startPage,
-        total_expected: totalItems,
-        completed: startPage >= lastPage,
-        updated_at: new Date().toISOString(),
-      });
-
-      for (let p = startPage + 1; p <= lastPage; p++) {
-        await sleep(350);
-        const page = await fetchJikanPage(p);
-        if (page) ingest(page.data);
-        setProgress({ loaded: seen.size, total: totalItems, done: false });
-        if (p % 10 === 0 || p === lastPage) {
-          await flush();
-          await saveCatalogMeta({
-            last_page_loaded: p,
-            total_expected: totalItems,
-            completed: p >= lastPage,
-            updated_at: new Date().toISOString(),
-          });
+      for (let p = 1; p <= Math.min(MAX_PAGES, lastPage); p++) {
+        if (p > 1) await sleep(350);
+        const page = await fetchJikanRecentPage(p);
+        if (!page) continue;
+        lastPage = page.lastPage;
+        const before = seen.size;
+        ingest(page.data);
+        const newlyAdded = seen.size - before;
+        setProgress({
+          loaded: byId.size,
+          total: Math.max(page.total || totalExpected, byId.size),
+          done: false,
+        });
+        if (newlyAdded === 0) {
+          staleStreak++;
+          if (staleStreak >= STOP_AFTER_STALE) break;
+        } else {
+          staleStreak = 0;
         }
       }
+
       await flush();
+      await saveCatalogMeta({
+        last_page_loaded: meta?.last_page_loaded ?? 0,
+        total_expected: Math.max(totalExpected, byId.size),
+        completed: meta?.completed ?? false,
+        updated_at: new Date().toISOString(),
+      });
       setProgress((prev) => ({ ...prev, done: true }));
     } catch {
       setError("Failed to refresh catalog. Please try again later.");
