@@ -21,10 +21,11 @@ const RECENT_SCAN_PAGES = 8;
 const EXPANSION_BATCH_PAGES = 40;
 const REQUEST_DELAY_MS = 450;
 
-const inferLoadedPopularityPage = (storedPage: number | undefined, localCount: number) =>
-  storedPage && storedPage > 0
-    ? storedPage
-    : Math.max(0, Math.floor(localCount / JIKAN_PAGE_LIMIT));
+const inferLoadedPopularityPage = (storedPage: number | undefined, localCount: number) => {
+  if (storedPage && storedPage > 0) return storedPage;
+  const likelyRecentOnlyCount = RECENT_SCAN_PAGES * JIKAN_PAGE_LIMIT;
+  return Math.max(0, Math.floor(Math.max(0, localCount - likelyRecentOnlyCount) / JIKAN_PAGE_LIMIT));
+};
 
 export const useAnimeCatalog = () => {
   const [anime, setAnime] = useState<Anime[]>([]);
