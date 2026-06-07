@@ -18,7 +18,7 @@ const titleKey = (t: string) => t.trim().toLowerCase();
 const pickBetter = (a: Anime, b: Anime) =>
   (b.score ?? -1) > (a.score ?? -1) ? b : a;
 const RECENT_SCAN_PAGES = 8;
-const EXPANSION_BATCH_PAGES = 40;
+const MAX_POPULARITY_PAGES = 2000;
 const REQUEST_DELAY_MS = 450;
 
 const inferLoadedPopularityPage = (storedPage: number | undefined, localCount: number) => {
@@ -160,14 +160,14 @@ export const useAnimeCatalog = () => {
         });
       }
 
-      // Then continue the full catalog crawl in popularity order. This cursor is
-      // persisted, so every button click advances another batch instead of
-      // repeatedly stopping on already-cached recent pages.
+      // Then crawl all remaining pages in popularity order until the end.
+      if (!Number.isFinite(lastPage)) {
+        lastPage = MAX_POPULARITY_PAGES;
+      }
       let lastLoadedPopularityPage = inferLoadedPopularityPage(meta?.last_page_loaded, byId.size);
       const startPage = lastLoadedPopularityPage + 1;
-      const endPage = Math.min(startPage + EXPANSION_BATCH_PAGES - 1, lastPage);
 
-      for (let p = startPage; p <= endPage; p++) {
+      for (let p = startPage; p <= lastPage; p++) {
         await waitForNextRequest();
         const page = await fetchJikanPage(p);
         if (!page) continue;
@@ -181,6 +181,7 @@ export const useAnimeCatalog = () => {
           done: false,
         });
         if (p >= lastPage) break;
+        if (p % 10 === 0) await flush();
       }
 
       await flush();
